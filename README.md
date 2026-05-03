@@ -4,6 +4,8 @@ A stress test and benchmark suite for the PlayStation 3, focused on validating C
 
 This repository publishes the **benchmark kernels only.** The inner loops that do the actual measuring. The application glue (rendering, input handling, SPU manager, GCM setup, packaging tooling) is being held back for a cleanup pass and will be released later. The compiled `.pkg` is shipped as a [release](../../releases) so anyone with a CFW capable PS3 can run it without building anything.
 
+![A preview of cellmark](assets/cellmark.gif)
+
 ---
 
 ## What's in this repo
