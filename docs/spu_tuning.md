@@ -60,7 +60,7 @@ These are at their practical SPU ceiling.
 
 ### 3.2 Int Multiply at 85% - clean
 
-Same picture. `mpya` (4-way SIMD multiply-add, 7-cycle latency) chained with 7 chains and 32× unrolled. Disasm matches source. ~15% gap is the same set of platform overheads.
+Same picture. `mpya` (4-way SIMD multiply-add, 7-cycle latency) chained with 7 chains and 32x unrolled. Disasm matches source. ~15% gap is the same set of platform overheads.
 
 ### 3.3 DP FMA at 79% - disasm clean, gap unexplained
 
@@ -123,7 +123,7 @@ The reason is in the SPU ISA encoding: **`hbrr` encodes the branch offset in a 9
 
 Two ways to make it work:
 
-1. **Split each `.rept` into pre-hint and post-hint halves.** The hbrr sits between them, ≤256 insns from the brnz. Adds ~30 lines of assembly per kernel. Estimated gain: ~3% per kernel.
+1. **Split each `.rept` into pre-hint and post-hint halves.** The hbrr sits between them, <=256 insns from the brnz. Adds ~30 lines of assembly per kernel. Estimated gain: ~3% per kernel.
 2. **Replace one strategically-placed `lnop` inside the loop with `hbrr`.** Cleaner but requires the same `.rept` split (since `.rept` repeats identically).
 
 Both are mechanical. Neither was written, the gain isn't worth the assembly complexity, and the un-hinted branch miss is a small fraction of an already-near-peak kernel for everything except recip (where the bug fix was the bigger win).
@@ -193,4 +193,4 @@ The +6.94% on recip lands within the predicted 7–8% range from disasm-counting
 
 ---
 
-*Investigation by sagemono, 2026. cellmark v1.0.0.*
+*Investigation by sagemono, 2026. cellmark v2.0.0.*

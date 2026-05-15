@@ -168,7 +168,15 @@ typedef struct {
 #define PAGE_DISK           3
 #define PAGE_DMA            4
 #define PAGE_EIB            5
-#define PAGE_COUNT          6
+#define PAGE_WORKLOAD       6
+#define PAGE_BURN           7
+#define PAGE_COUNT          8
+
+/* workload benchmark indices (PAGE_WORKLOAD selector) */
+#define WORKLOAD_PI         0   /* BBP hex digit extraction (6-SPE parallel) */
+#define WORKLOAD_FFT        1   /* 1D radix-2 complex SP FFT (6-SPE parallel) */
+#define WORKLOAD_NBODY      2   /* all-pairs gravitational N-body (6-SPE parallel) */
+#define WORKLOAD_COUNT      3
 
 #ifndef __SPU__
 
@@ -178,19 +186,31 @@ typedef struct {
 #define PPE_BENCH_L2_BW     2
 #define PPE_BENCH_L1_LAT    3
 #define PPE_BENCH_L2_LAT    4
-#define PPE_BENCH_COUNT     5
+#define PPE_BENCH_FP_SCALAR 5   /* scalar double-precision FMA (FPU) */
+#define PPE_BENCH_FXU       6   /* fixed-point integer add throughput (FXU) */
+#define PPE_BENCH_SMT       7   /* TH0+TH1 SMT scaling (same-unit + cross-unit) */
+#define PPE_BENCH_COUNT     8
 
 /* DMA benchmark indices (PAGE_DMA selector) */
 #define DMA_BENCH_GET       0
 #define DMA_BENCH_PUT       1
-#define DMA_BENCH_COUNT     2
+#define DMA_BENCH_SIZESWEEP 2   /* auto-sweep GET chunk size 256B..16KB */
+#define DMA_BENCH_COUNT     3
 
 /* EIB benchmark indices (PAGE_EIB selector) */
-#define EIB_BENCH_PAIRS     0   /* 0<->1, 2<->3, 4<->5: 3 disjoint LS-LS pairs */
-#define EIB_BENCH_COUNT     1
+#define EIB_BENCH_PAIRS         0   /* 0<->1, 2<->3, 4<->5: 3 disjoint LS-LS pairs */
+#define EIB_BENCH_HOTSPOT       1   /* SPEs 1..5 all read from SPE 0; SPE 0 idle */
+#define EIB_BENCH_HOTSPOT_SWEEP 2   /* auto-sweep active-reader count 1..5 */
+#define EIB_BENCH_NXN           3   /* sweep all 30 ordered (src, dst) SPE pairs */
+#define EIB_BENCH_ATOMIC        4   /* 2-SPE atomic-cache getllar/putllc ping-pong */
+#define EIB_BENCH_MBOX          5   /* PPE <-> SPE mailbox ping-pong */
+#define EIB_BENCH_BRANCH        6   /* SPE branch-hint hbr effectiveness */
+#define EIB_BENCH_COUNT         7
 
 /* PPE peak: 1 vmaddfp/cyc * 4 lanes * 2 ops = 8 GFLOPS/GHz (single PPE core) */
 #define PEAK_PPE_VMX        8.0f
+#define PEAK_PPE_FP_SCALAR  2.0f
+#define PEAK_PPE_FXU        1.0f
 
 static inline const char *memtest_name(uint32_t id)
 {

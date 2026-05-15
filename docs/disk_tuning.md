@@ -366,4 +366,4 @@ Verifies the claim that Seagate's Adaptive Memory does not promote sequential re
 
 ---
 
-*Investigation by sagemono, 2026. cellmark v1.0.0.*
+*Investigation by sagemono, 2026. cellmark v2.0.0.*

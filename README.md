@@ -13,18 +13,42 @@ Both retail CFW and DECR-1000A development-kit build variants are supported. The
 ## What's in this repo
 
 ```
-ppu/        PPE side main loop, GCM display, per-page renderers, benchmark orchestrators
-spu/        SPU side compute kernels (.S), memtest patterns, DMA + EIB SPE workers (.c)
-include/    Shared param and result structs DMA'd between PPE and SPE
-docs/       Nerdbabble, disk_tuning.md, ppe_tuning.md, spu_tuning.md
-assets/     Holds the demo gif and any future assets
+ppu/main.c                entry point
+engine/                   bench-agnostic framework + shared services
+  cellmark_engine.{c,h}   bench module dispatch
+  bench_modules.c         all bench_module_t entries
+  bench_registry.c        the canonical NULL-terminated module array
+  spu.{c,h}, gcm.{c,h}    SPU thread group lifecycle, GCM display
+  pmu.{c,h}, cell_pmu.{c,h}  libperf wrapper + cell-side sampling
+  sysmon.{c,h}, render.{c,h} status string + render helpers
+  spu_shared/             SPU code used by multiple benches
+benches/<name>/           one self-contained directory per benchmark
+  _template/              copy-source for new benches (see ADDING_A_BENCHMARK.md)
+  cell/    ppe/    disk/    dma/    eib/    atomic/    mbox/    branch/
+  pi/      fft/    nbody/   workload/   burn/
+include/                  public headers
+  bench.h                 bench_module_t interface
+  stress_common.h         PPU/SPE shared types
+tools/
+  build.py                build driver (replaces build.bat)
+  new_bench.py            scaffold a new bench from _template/
+docs/
+  cell_tuning.md          optimization bible + measurement bible
+  ARCHITECTURE.md         how cellmark is structured internally
+  ADDING_A_BENCHMARK.md   guide for extending cellmark
+  ppe_tuning.md, spu_tuning.md, disk_tuning.md  subsystem deep dives
+build/                    all build outputs land here (gitignored)
 ```
+
+For a deeper look at the engine internals see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md);
+to add your own benchmark, [docs/ADDING_A_BENCHMARK.md](docs/ADDING_A_BENCHMARK.md).
 
 ---
 
 ## What cellmark actually does (full app)
 
-Six pages, switched with **L2/R2** on a controller:
+Eight pages, switched with **L2/R2** on a controller. L1/R1 cycle the
+variant within a page.
 
 ### 1. Cell - SPU compute (all 6 SPEs in parallel)
 
@@ -45,8 +69,6 @@ SP FMA stress verifies a deterministic accumulator chain at intervals; if a sing
 - **L1 / L2 read bandwidth** - sequential VMX loads, load-ahead pattern hides 7-cycle latency
 - **L1 / L2 latency** - Pointer chase using Sattolo's algorithm, true load-to-use ns
 
-True multithreaded benchmarks are planned for future releases, though it will take a while to implement due to the nature of multithreading on Cell.
-
 ### 3. XDR - memtest86+ style memory test (15 patterns)
 
 15 sub-tests cycle automatically across **all 6 SPEs in parallel**, partitioning XDR into per-SPE slices. Allocates as much XDR as the OS will give.
@@ -61,9 +83,32 @@ Sequential 64KB and random 4K read/write on a 32 MB test file (writes are post-`
 
 All 6 SPEs in parallel pulling (GET) or pushing (PUT) 16 KB MFC chunks against XDR through a double-buffered pipeline. Each SPE owns a 1 MB XDR slice so they don't fight for the same cache lines. Headline numbers on stock 3.2 GHz: **GET ~22.8 GB/s, PUT ~22.1 GB/s**, both within ~13% of the 25.6 GB/s XDR1 DRAM ceiling. Stresses the EIB-to-MIC path, the bottleneck is DRAM, not the EIB or the MFC.
 
-### 6. Cell EIB BW - SPE <-> SPE LS bandwidth
+### 6. Fabric - EIB / atomic / mailbox / branch hint
 
-The same 6 SPEs paired up (0<->1, 2<->3, 4<->5), each reading from its partner's local store via the SDK fixed peer LS EA mapping (`SYS_SPU_THREAD_BASE_LOW + spu_num * SYS_SPU_THREAD_OFFSET`). Pure EIB never touches the MIC or XDR. Aggregate **~115 GB/s** across 3 disjoint pairs, ~74% of the per-direction 25.6 GB/s ring ceiling. Each pair runs two simultaneous flows on opposite ring directions, so per-pair throughput exceeds the single-ring nominal. As far as I'm aware there's no public benchmark numbers measured on retail hardware.
+Cell's interconnect characterised six ways:
+
+- **Pairs**: 3 disjoint SPE<->SPE LS-to-LS flows via the SDK fixed peer-LS EA mapping. Aggregate **~115 GB/s** across 6 SPEs (74% of per-direction ring ceiling).
+- **Hotspot (5→1)**: many-to-one gather into one SPE's LS, **~23.7 GB/s** 93% of the 25.6 GB/s LS port ceiling).
+- **Hotspot sweep** (N=1..5): proves the destination LS port is the bottleneck *immediately* at N=1; adding readers splits the same pool.
+- **NxN matrix** (30 pairs): resolves the EIB physical topology - proves logical SPE IDs 0–5 sit on the ring in numerical order.
+- **Atomic cache** (`getllar`/`putllc` ping-pong): **150 ns/bounce** between two SPEs, the locking fabric latency floor.
+- **Mailbox** (PPE<->SPE with lv2 event queue): **11.6 μs round-trip** - ~75x slower than atomic cache, dominated by lv2 syscall overhead.
+- **SPE branch hint** (`hbrr`): 17 vs 30 cyc/iter on a tight 12-cyc loop body; 1.71x speedup for correctly hinted backward branches.
+
+All of these characterise different parts of the same EIB fabric and were published first on retail/DECR PS3 silicon as part of cellmark. See [docs/cell_tuning.md](docs/cell_tuning.md) §3 for the full architectural analysis.
+
+### 7. Workload - real-workload benchmarks with scoring
+
+Cinebench-style: each workload gets a normalised score (stock 3.2 GHz =
+100), composite = geometric mean across all active workloads.
+
+- **Pi BBP** - Bailey-Borwein-Plouffe hex digit extraction at position N=10000. Realistic "DP scalar number theory" workload, deliberately showcases Cell's *weakness* (1.2% of DP peak; SPU is wrong-shaped for branchy DP code). 40 digits/sec at stock.
+- **FFT** - 1D radix-2 complex SP FFT, N=1024, SIMD batched across 4 vector lanes (CellBuzz/FFTC inner-loop techniques). 185 Mpoints/sec at stock; 4.3x over the scalar baseline, ~6% of SP-FMA peak.
+- **N-body** - all-pairs gravitational, N=4080, 50 iterations/batch, hardware rsqrte. SPU's *strength* workload: 2195 Mpairs/sec at stock = **27% of SP-FMA peak** (~42 GFLOPS aggregate).
+
+### 8. Burn-In - all-units saturation
+
+Continuously saturates every Cell subsystem at once: **4 SPEs running dual-issue max-heat compute** (saturates even+odd pipes every cycle), **2 SPEs streaming XDR DMA**, **PPE TH0 VMX FMA** inline between display frames. Reports live SPE compute GFLOPS, XDR GB/s, PPE VMX GFLOPS, and a composite saturation score. Leave it running for a few hours to find thermal issues. The "how much of Cell are you actually using" view.
 
 ---
 
@@ -78,7 +123,7 @@ The compiled package is on the [Releases](../../releases) page.
 
 | Button                | Action                                  |
 |-----------------------|-----------------------------------------|
-| **L2 / R2**           | Previous / next page                    |
+| **L2 / R2**           | Previous / next page (category)         |
 | **L1 / R1 / D-pad**   | Previous / next benchmark within page   |
 | **X (Cross)**         | Run selected disk bench / probe suite   |
 | **Square**            | Toggle disk bench / probe view          |
@@ -86,6 +131,31 @@ The compiled package is on the [Releases](../../releases) page.
 | **SELECT + START**    | Exit                                    |
 
 File logging appends to `/dev_hdd0/game/CELLMARK0/USRDIR/cellmark.log` on every mode change, every memtest pass, and on exit. Useful for long stability runs where you want a paper trail of what passed before something hung.
+
+## Building from source
+
+```bash
+python tools/build.py retail      # build/cellmark.elf + cellmark.self (CFW)
+python tools/build.py decr        # build/cellmark_decr.elf + .self (ProDG/Target Manager)
+python tools/build.py clean       # remove build/
+python tools/build.py spu_fft     # rebuild just one SPU bench (faster iter)
+
+python make_pkg.py --variant retail   # build/cellmark.pkg (NPDRM-signed)
+python make_pkg.py --variant decr     # build/cellmark_decr.pkg
+```
+
+Requires the Cell SDK 3.0 toolchain at `C:\usr\local\cell` (or override
+via `CELL_SDK` env var). Python 3.7+ for the build driver.
+
+### Adding a benchmark
+
+```bash
+python tools/new_bench.py raytracer --category workload
+# scaffolds benches/raytracer/ from _template/, prints registration steps
+```
+
+See [docs/ADDING_A_BENCHMARK.md](docs/ADDING_A_BENCHMARK.md) for the
+full guide.
 
 ---
 

@@ -66,7 +66,7 @@ What the disassembler showed, kernel by kernel.
 15530:  bdnz+   15470
 ```
 
-48 `vmaddfp` plus one `bdnz+` (decrement-and-branch with static "taken" hint) per inner. **No microcoded ops. No `Rc=1` forms. No spills. No address arithmetic.** The 6 chains × 8x unroll the source asked for, exactly as written. 49 instructions per inner, 384 FLOPs → 25.6 GFLOPS at 100% issue rate.
+48 `vmaddfp` plus one `bdnz+` (decrement-and-branch with static "taken" hint) per inner. **No microcoded ops. No `Rc=1` forms. No spills. No address arithmetic.** The 6 chains x 8x unroll the source asked for, exactly as written. 49 instructions per inner, 384 FLOPs → 25.6 GFLOPS at 100% issue rate.
 
 This gets 12.2. Half. **The kernel is operating as designed; the platform is the ceiling.** See §5.
 
@@ -216,7 +216,7 @@ This did not visibly move any number on its own, but it's defensible best practi
 |---------------|---------------|--------------|--------------------------------|---------|
 | VMX FMA       | 12.2 GFLOPS   | 12.2         | 12.8 (LV2 SMT ceiling, ~50%)   | At ceiling. No further gain available from userland |
 | L1 read BW    | 9.12 GB/s     | **10.3**     | 12.8 (SMT-halved 1-issue)      | 80% of strict 1-issue ceiling; the rest is loop overhead and SMT noise |
-| L2 read BW    | 2.75 GB/s     | **8.4**      | 6–12                            | **3.05×**, within prediction; `dcbt` covers the L2 miss path |
+| L2 read BW    | 2.75 GB/s     | **8.4**      | 6–12                            | **3.05x**, within prediction; `dcbt` covers the L2 miss path |
 | L1 latency    | 3.9 ns / 12.5 cyc | **2.0 ns / 6.4 cyc** | 1.25 ns / 4 cyc (PPE L1 hit)| Matches PPE load-to-use floor (4–6 cycles per the manual) |
 | L2 latency    | 16.1 ns / 51 cyc | **11.3 ns / 36 cyc** | 11.25 ns / 36 cyc (PPE L2 hit) | **Exactly the PPE-published L2 hit latency** |
 
@@ -238,7 +238,7 @@ The single most important finding from this investigation is publishable on its 
 
 > **A single problem-state PPU thread cannot exceed roughly 50% of the documented PPE VMX FMA peak on GameOS / LV2.** The PowerPC `or N,N,N` priority hints that the bare-metal mechanism for one SMT thread to yield dispatch slots to the other are gated by the hypervisor's `TSCR[UCP]` bit, which LV2 leaves cleared in problem state. Sony's own SDK ships `__cctpl()`/`__cctpm()`/`__cctph()` intrinsics with the explicit note "*This intrinsic has no effect on Cell OS Lv-2*" (`C_and_Cpp_Language_Extension-Specifications_e.htm`, Tables 112–114). There is no documented LV2 syscall to set hardware priority or pin a userland thread to a specific PPE hardware context. The Cell programming model expects vectorised work to happen on the SPUs.
 
-Cellmark's six-SPU SP FMA result lands at ~134 GFLOPS combined, which is more than 12× the PPE-VMX practical ceiling and within 90% of theoretical SPU peak. The chip [WORKS](https://www.youtube.com/watch?v=nVqcxarP9J4), you just have to use it the way the STI folks designed it to be used.
+Cellmark's six-SPU SP FMA result lands at ~134 GFLOPS combined, which is more than 12x the PPE-VMX practical ceiling and within 90% of theoretical SPU peak. The chip [WORKS](https://www.youtube.com/watch?v=nVqcxarP9J4), you just have to use it the way the STI folks designed it to be used.
 
 ---
 
@@ -262,4 +262,4 @@ Cellmark's six-SPU SP FMA result lands at ~134 GFLOPS combined, which is more th
 
 ---
 
-*Investigation by sagemono, 2026. cellmark v1.0.0.*
+*Investigation by sagemono, 2026. cellmark v2.0.0.*
