@@ -3,7 +3,7 @@
 #ifndef CELLMARK_VERSION_H
 #define CELLMARK_VERSION_H
 
-#define CELLMARK_VERSION       "2.0.0"
+#define CELLMARK_VERSION       "2.0.1"
 #define CELLMARK_BANNER        "cellmark " CELLMARK_VERSION " by sagemono"
 
 #endif /* CELLMARK_VERSION_H */
