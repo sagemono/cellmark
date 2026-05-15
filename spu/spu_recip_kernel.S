@@ -146,18 +146,19 @@ spu_stress_recip_kernel:
 
         /* step 1.5: abs(x) for fi (and, 2-cycle latency)
          * independent of frsqest - provides 12-cycle gap before fi uses frsqest */
+        /* and is even pipe; pair with lnop (odd) to dual issue */
         and     $38, $8,  $72
-        nop
+        lnop
         and     $39, $9,  $72
-        nop
+        lnop
         and     $40, $10, $72
-        nop
+        lnop
         and     $41, $11, $72
-        nop
+        lnop
         and     $42, $12, $72
-        nop
+        lnop
         and     $43, $13, $72
-        nop
+        lnop
 
         /* step 2: interpolate (fi, 6-cycle latency)
          * frsqest was 12 insns ago (plenty), and $38 was 6 insns ago (exact) */

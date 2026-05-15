@@ -17,11 +17,18 @@
 
 #include <altivec.h>
 #include <sys/time_util.h>
+#include <sys/ppu_thread.h>
 #include <stdint.h>
 #include <string.h>
 
 #include "stress_common.h"
 #include "ppe_benchmarks.h"
+
+/* dcbt prefetch into L1+L2 (th=0). vec_dst is a no-op on cell per ibm, so dcbt is the right primitive */
+static inline void prefetch_l1l2(const void *p)
+{
+    __asm__ __volatile__ ("dcbt 0,%0" : : "r"(p));
+}
 
 /* ----------------------------------------------------------------
  * buffer sizes
@@ -33,11 +40,11 @@
 /* L2 buffer: 400KB, exceeds 32KB L1, fits in 512KB L2 */
 #define L2_BUF_VECS     (400 * 1024 / 16)   /* 25600 x vector float */
 
-/* L1 latency: 3584 entries * 4B = 14KB - L1-resident */
+/* L1 latency: 3584 entries * 8B (void*) = 28KB - L1-resident */
 #define LAT_L1_COUNT    3584
 
-/* L2 latency: 65536 entries * 4B = 256KB - L2-resident, exceeds L1 */
-#define LAT_L2_COUNT    65536
+/* L2 latency: 32768 entries * 8B (void*) = 256KB - L2-resident, exceeds L1 */
+#define LAT_L2_COUNT    32768
 
 /* batch sizes */
 #define VMX_ITERS       (2 * 1024 * 1024)   /* 2M vmaddfp each batch (8x unrolled) */
@@ -50,24 +57,37 @@
 
 static vector float __attribute__((aligned(128))) l1_buf[L1_BUF_VECS];
 static vector float __attribute__((aligned(128))) l2_buf[L2_BUF_VECS];
-static uint32_t     __attribute__((aligned(128))) lat_l1[LAT_L1_COUNT];
-static uint32_t     __attribute__((aligned(128))) lat_l2[LAT_L2_COUNT];
+
+/* pointer chase arrays: each entry holds the address of the next entry in the cycle
+
+* inner chase compiles to `ld; bdnz` (2 insns, 4-cycle dependency) instead of the index based `rlwinm; extsw; add; lwz; bdnz` (5 insns, 7 cycle dependency). 
+*
+* on PPE that is the difference between ~12.5 cycles per chase and ~4 cycles per chase
+*/
+static void *lat_l1_ptrs[LAT_L1_COUNT] __attribute__((aligned(128)));
+static void *lat_l2_ptrs[LAT_L2_COUNT] __attribute__((aligned(128)));
 
 static ppe_results_t g_results;
 
-/* ----------------------------------------------------------------
- * sattolo cycle: single cycle visiting all N elements (for pointer chase)
- * dif from Fisher-Yates: j bc [0, i-1] instead of [0, i]
- * ---------------------------------------------------------------- */
-static void build_sattolo(uint32_t *buf, int count)
+/*
+ * Sattolo cycle: single cycle visiting all N elements
+ * differs from fisher-yates: j in [0, i-1] instead of [0, i].
+*/
+static void build_sattolo(void **buf, int count)
 {
     uint32_t seed = 0xDEADBEEF;
     int i, j;
-    for (i = 0; i < count; i++) buf[i] = (uint32_t)i;
+    /* identity start: each slot points to itself */
+    for (i = 0; i < count; i++) buf[i] = &buf[i];
+    /* shuffle into a single cycle */
     for (i = count - 1; i > 0; i--) {
         seed = seed * 1664525u + 1013904223u;
         j = (int)(seed % (uint32_t)i);   /* j in [0, i-1] */
-        { uint32_t t = buf[i]; buf[i] = buf[j]; buf[j] = t; }
+        {
+            void *t = buf[i];
+            buf[i] = buf[j];
+            buf[j] = t;
+        }
     }
 }
 
@@ -87,17 +107,30 @@ void ppe_benchmarks_init(void)
             (float)(i + 1), (float)(i + 2),
             (float)(i + 3), (float)(i + 4)};
     }
-    build_sattolo(lat_l1, LAT_L1_COUNT);
-    build_sattolo(lat_l2, LAT_L2_COUNT);
+    build_sattolo(lat_l1_ptrs, LAT_L1_COUNT);
+    build_sattolo(lat_l2_ptrs, LAT_L2_COUNT);
 }
 
-/* ----------------------------------------------------------------
- * VMX FMA: 6 independent vmaddfp chains, 8x unrolled
+/*
+ * vmx fma: 6 independent vmaddfp chains, 8x unrolled.
  *
- * Without unrolling: 6 vmaddfp + 3 loop insns = 9 cycles/iter -> ~67% eff.
- * With 8x unroll:   48 vmaddfp + 2 loop insns = 50 cycles/iter -> ~96% eff.
- * Peak: 1 vmaddfp/cyc * 4 lanes * 2 ops = 8 GFLOPS/GHz
- * ---------------------------------------------------------------- */
+ * without unrolling: 6 vmaddfp + 3 loop insns = 9 cycles/iter -> ~67% eff.
+ * with 8x unroll:   48 vmaddfp + 1 bdnz+      = 49 cycles/iter
+ *                   -> peak = 384 flops / 49 cycles ~= 25 gflops at 3.2 ghz.
+ *
+ * disassembly of the inner is clean:
+ *  no microcoded ops, no rc=1 forms,
+ *  no spills. the kernel is operating as designed!
+ *
+ * on / lv2 / gameos, single-thread vmx fma on the ppe caps at
+ * around 50% of the 25.6 gflops peak documented above. that cap is
+ * the platform, not the code
+ *
+ * 25.6 gflops is the bare-metal peak. ~12 gflops is the practical ps3
+ * peak for single-thread ppe-vmx fma. the cell programming model
+ * intentionally pushes vectorised work to the spus, where 6 spes hit
+ * ~150 gflops combined - more than 12x the ppe-vmx ceiling here.
+*/
 static void __attribute__((noinline)) run_vmx_fma(uint64_t tb_freq)
 {
     vector float a0 = (vector float){1.0f, 1.1f, 1.2f, 1.3f};
@@ -163,6 +196,12 @@ static void __attribute__((noinline)) run_vmx_fma(uint64_t tb_freq)
     }
 }
 
+/* 
+ * l1 read bandwidth: 28kb buffer fits l1, no prefetch needed
+ *
+ * inner uses a single moving pointer with vec_ld(offset, base) so gcc emits clean lvx with hoisted offsets, avoiding the per `load addi + clrldi` address formation overhead that gcc defaults to when
+ * indexing through `l1_buf[i + n]`. loads r issued ahead of the adds to hide the 7 cycle vmx load to use latency
+ */
 static void __attribute__((noinline)) run_l1_bw(uint64_t tb_freq)
 {
     vector float s0 = (vector float){0};
@@ -175,17 +214,17 @@ static void __attribute__((noinline)) run_l1_bw(uint64_t tb_freq)
 
     SYS_TIMEBASE_GET(ts0);
     for (p = 0; p < L1_PASSES; p++) {
+        const vector float *base = l1_buf;
         for (i = 0; i < L1_BUF_VECS; i += 8) {
-            /* issue 8 loads first . hides 7-cycle load latency */
-            t0 = l1_buf[i + 0]; t1 = l1_buf[i + 1];
-            t2 = l1_buf[i + 2]; t3 = l1_buf[i + 3];
-            t4 = l1_buf[i + 4]; t5 = l1_buf[i + 5];
-            t6 = l1_buf[i + 6]; t7 = l1_buf[i + 7];
-            /* by now t0 has been outstanding 8 cycles: data ready */
-            s0 = vec_add(s0, t0); s1 = vec_add(s1, t1);
-            s2 = vec_add(s2, t2); s3 = vec_add(s3, t3);
-            s0 = vec_add(s0, t4); s1 = vec_add(s1, t5);
-            s2 = vec_add(s2, t6); s3 = vec_add(s3, t7);
+            t0 = vec_ld(0,   base);  t1 = vec_ld(16,  base);
+            t2 = vec_ld(32,  base);  t3 = vec_ld(48,  base);
+            t4 = vec_ld(64,  base);  t5 = vec_ld(80,  base);
+            t6 = vec_ld(96,  base);  t7 = vec_ld(112, base);
+            s0 = vec_add(s0, t0);    s1 = vec_add(s1, t1);
+            s2 = vec_add(s2, t2);    s3 = vec_add(s3, t3);
+            s0 = vec_add(s0, t4);    s1 = vec_add(s1, t5);
+            s2 = vec_add(s2, t6);    s3 = vec_add(s3, t7);
+            base += 8;
         }
     }
     SYS_TIMEBASE_GET(ts1);
@@ -202,9 +241,17 @@ static void __attribute__((noinline)) run_l1_bw(uint64_t tb_freq)
     }
 }
 
-/* ----------------------------------------------------------------
- * L2 read bandwidth: same load-ahead pattern, L2-resident buffer
- * ---------------------------------------------------------------- */
+/*
+ * l2 read bandwidth: 400kb buffer exceeds l1, needs prefetch.
+ *
+ * same single-pointer pattern as l1 bw, plus a `dcbt` prefetch issued
+ * 4 cache lines (512 b) ahead of the current load. ppe l2 hit latency
+ * is ~36 cycles; 4 lines ahead at 8 b/cycle issue gives 64 cycles of
+ * cover, comfortably overlapping the l2 miss path
+ *
+ * per IBM tip 5: altivec
+ * vec_dst()/dst variants are no-ops on cell. dcbt is the only prefetch primitive that takes effect
+*/
 static void __attribute__((noinline)) run_l2_bw(uint64_t tb_freq)
 {
     vector float s0 = (vector float){0};
@@ -217,15 +264,23 @@ static void __attribute__((noinline)) run_l2_bw(uint64_t tb_freq)
 
     SYS_TIMEBASE_GET(ts0);
     for (p = 0; p < L2_PASSES; p++) {
+        const vector float *base = l2_buf;
+        const char *prefetch_end = (const char *)l2_buf
+                                 + L2_BUF_VECS * 16 - 512;
         for (i = 0; i < L2_BUF_VECS; i += 8) {
-            t0 = l2_buf[i + 0]; t1 = l2_buf[i + 1];
-            t2 = l2_buf[i + 2]; t3 = l2_buf[i + 3];
-            t4 = l2_buf[i + 4]; t5 = l2_buf[i + 5];
-            t6 = l2_buf[i + 6]; t7 = l2_buf[i + 7];
-            s0 = vec_add(s0, t0); s1 = vec_add(s1, t1);
-            s2 = vec_add(s2, t2); s3 = vec_add(s3, t3);
-            s0 = vec_add(s0, t4); s1 = vec_add(s1, t5);
-            s2 = vec_add(s2, t6); s3 = vec_add(s3, t7);
+            const char *cb = (const char *)base;
+            if (cb < prefetch_end) {
+                prefetch_l1l2(cb + 512);     /* 4 lines = 512 B ahead */
+            }
+            t0 = vec_ld(0,   base);  t1 = vec_ld(16,  base);
+            t2 = vec_ld(32,  base);  t3 = vec_ld(48,  base);
+            t4 = vec_ld(64,  base);  t5 = vec_ld(80,  base);
+            t6 = vec_ld(96,  base);  t7 = vec_ld(112, base);
+            s0 = vec_add(s0, t0);    s1 = vec_add(s1, t1);
+            s2 = vec_add(s2, t2);    s3 = vec_add(s3, t3);
+            s0 = vec_add(s0, t4);    s1 = vec_add(s1, t5);
+            s2 = vec_add(s2, t6);    s3 = vec_add(s3, t7);
+            base += 8;
         }
     }
     SYS_TIMEBASE_GET(ts1);
@@ -242,18 +297,25 @@ static void __attribute__((noinline)) run_l2_bw(uint64_t tb_freq)
     }
 }
 
+/*
+ * l1 / l2 latency: sattolo cycle
+ *
+ * every entry holds the address of the slot to visit next, so the inner compiles to `ld; bdnz+` (2 insns, 4-cycle dependency = 1 PPE L1 hit latency per chase) 
+ * the previous index based version used 5 insns with a 7 cycle dep chain (rlwinm; extsw; add; lwz; bdnz), inflating measured L1 latency to around 12 cycles.
+ */
 static void __attribute__((noinline)) run_l1_lat(uint64_t tb_freq)
 {
-    uint32_t idx = 0;
+    void * volatile sink;
+    register void *p = lat_l1_ptrs[0];
     uint64_t ts0, ts1;
     uint32_t i;
 
     SYS_TIMEBASE_GET(ts0);
     for (i = 0; i < LAT_CHASES; i++)
-        idx = lat_l1[idx];
+        p = *(void **)p;
     SYS_TIMEBASE_GET(ts1);
 
-    { volatile uint32_t s = idx; (void)s; }
+    sink = p; (void)sink;
 
     {
         double secs = (double)(ts1 - ts0) / (double)tb_freq;
@@ -265,16 +327,17 @@ static void __attribute__((noinline)) run_l1_lat(uint64_t tb_freq)
 
 static void __attribute__((noinline)) run_l2_lat(uint64_t tb_freq)
 {
-    uint32_t idx = 0;
+    void * volatile sink;
+    register void *p = lat_l2_ptrs[0];
     uint64_t ts0, ts1;
     uint32_t i;
 
     SYS_TIMEBASE_GET(ts0);
     for (i = 0; i < LAT_CHASES; i++)
-        idx = lat_l2[idx];
+        p = *(void **)p;
     SYS_TIMEBASE_GET(ts1);
 
-    { volatile uint32_t s = idx; (void)s; }
+    sink = p; (void)sink;
 
     {
         double secs = (double)(ts1 - ts0) / (double)tb_freq;
@@ -284,8 +347,24 @@ static void __attribute__((noinline)) run_l2_lat(uint64_t tb_freq)
     }
 }
 
+/* 
+ * ppe_run_batch
+ *
+ * raises the calling PPU thread's lv2 priority to a high value for the duration of the timed kernel, then restores the original priority
+ */
 void ppe_run_batch(int bench_id, uint64_t tb_freq)
 {
+    sys_ppu_thread_t self;
+    int old_prio = -1, ret;
+
+    if (sys_ppu_thread_get_id(&self) == CELL_OK) {
+        ret = sys_ppu_thread_get_priority(self, &old_prio);
+        if (ret == CELL_OK)
+            sys_ppu_thread_set_priority(self, 100);
+        else
+            old_prio = -1;
+    }
+
     switch (bench_id) {
     case PPE_BENCH_VMX_FMA: run_vmx_fma(tb_freq); break;
     case PPE_BENCH_L1_BW:   run_l1_bw(tb_freq);   break;
@@ -293,6 +372,9 @@ void ppe_run_batch(int bench_id, uint64_t tb_freq)
     case PPE_BENCH_L1_LAT:  run_l1_lat(tb_freq);  break;
     case PPE_BENCH_L2_LAT:  run_l2_lat(tb_freq);  break;
     }
+
+    if (old_prio >= 0)
+        sys_ppu_thread_set_priority(self, old_prio);
 }
 
 const ppe_results_t *ppe_get_results(void)

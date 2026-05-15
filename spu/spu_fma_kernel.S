@@ -28,11 +28,18 @@ spu_stress_fma_kernel:
         ilhu    $6, 0x3fb3             /* acc4 ~= 1.4 */
         ilhu    $7, 0x3fc0             /* acc5 ~= 1.5 */
 
-        /* no hbrr. displacement too large for 64x unroll.
-         * the 15 cycle branch back penalty is already budgeted
-         * at 3.9% overhead. the ILB cannot cache a 3 KB loop
-         * anyway, so the hint would not help... */
-
+         /* no hbrr branch hint here... the hbrr instruction encodes the
+         * branch offset in a 9 bit signed field (max +/-256 insns)
+         *
+         * this loop's body is 768 insns, putting the brnz out of
+         * range from any hbrr placed before .rept
+         * achievable via splitting .rept into pre hint and post hint
+         * halves, but the gain is ~4% and the code complexity isn't
+         * worth it
+         *
+         * the 18 cycle taken-branch miss is amortised over 768 insns
+         * of body for ~2.3% overhead per outer iter
+         */
         .balign 128
 .Lloop:
 

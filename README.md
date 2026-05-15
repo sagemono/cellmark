@@ -1,8 +1,10 @@
 # cellmark
 
-A stress test and benchmark suite for the PlayStation 3, focused on validating Cell BE / XDR overclocks and characterising disk I/O.
+A stress test and benchmark suite for the PlayStation 3.
 
-This repository publishes the **benchmark kernels only.** The inner loops that do the actual measuring. The application glue (rendering, input handling, SPU manager, GCM setup, packaging tooling) is being held back for a cleanup pass and will be released later. The compiled `.pkg` is shipped as a [release](../../releases) so anyone with a CFW capable PS3 can run it without building anything.
+cellmark started as a way to verify Cell BE / XDR overclock stability against memtest86+ style patterns and a deterministic FMA accumulator. It has since grown into a fuller hardware characterisation suite covering the PPE core, all 6 SPEs, the EIB ring fabric, the XDR memory subsystem, and the disk path. 
+
+Both retail CFW and DECR-1000A development-kit build variants are supported. The DECR build links `libperf` for direct CBE Performance Monitor access on dev hardware.
 
 ![A preview of cellmark](assets/cellmark.gif)
 
@@ -10,28 +12,19 @@ This repository publishes the **benchmark kernels only.** The inner loops that d
 
 ## What's in this repo
 
-The published files are exactly the parts other people are most likely to learn something from:
-
-| File | What it is |
-|---|---|
-| [`spu/spu_fma_kernel.S`](spu/spu_fma_kernel.S) | SP FMA stress - 64× unrolled, 6 chains, ~96% of even-pipeline peak |
-| [`spu/spu_dp_fma_kernel.S`](spu/spu_dp_fma_kernel.S) | DP FMA stress - 13 chains to hide the 13-cycle DFMA latency |
-| [`spu/spu_int_kernel.S`](spu/spu_int_kernel.S) | Integer multiply-add - `mpya` 4-way SIMD, 7 chains |
-| [`spu/spu_recip_kernel.S`](spu/spu_recip_kernel.S) | Reciprocal + rsqrt with Newton-Raphson refinement, zero-stall pipeline |
-| [`spu/spu_shuf_kernel.S`](spu/spu_shuf_kernel.S) | Odd-pipe shuffle storm - 5 chains, hides the 4-cycle latency |
-| [`spu/spu_dual_kernel.S`](spu/spu_dual_kernel.S) | Maximum dual-issue: even-pipe FMA + odd-pipe shufb every cycle |
-| [`ppu/ppe_benchmarks.c`](ppu/ppe_benchmarks.c) | PPE: VMX FMA, L1/L2 read bandwidth, L1/L2 latency |
-| [`ppu/disk_benchmark.c`](ppu/disk_benchmark.c) | HDD/SSD/SSHD sequential + random 4K + 13-probe diagnostic suite |
-| [`include/stress_common.h`](include/stress_common.h) | PPE↔SPU shared parameter / result structs and constants |
-| [`docs/disk_tuning.md`](docs/disk_tuning.md) | The SSHD investigation: 5.7 MB/s -> 47 MB/s |
-
-The `.h` files for `ppe_benchmarks` and `disk_benchmark` are included so the `.c` files are readable in isolation.
+```
+ppu/        PPE side main loop, GCM display, per-page renderers, benchmark orchestrators
+spu/        SPU side compute kernels (.S), memtest patterns, DMA + EIB SPE workers (.c)
+include/    Shared param and result structs DMA'd between PPE and SPE
+docs/       Nerdbabble, disk_tuning.md, ppe_tuning.md, spu_tuning.md
+assets/     Holds the demo gif and any future assets
+```
 
 ---
 
 ## What cellmark actually does (full app)
 
-Four pages, switched with **L2/R2** on a controller:
+Six pages, switched with **L2/R2** on a controller:
 
 ### 1. Cell - SPU compute (all 6 SPEs in parallel)
 
@@ -63,6 +56,14 @@ Sequential, Walking 1/0, Checkerboard, Random, Moving Inversions, Bank Hammer, R
 ### 4. Disk I/O - HDD/SSD/SSHD characterisation
 
 Sequential 64KB and random 4K read/write on a 32 MB test file (writes are post-`fsync` these are true media latency, not write-cache). A 13-probe diagnostic suite separates per-call LV2 overhead from FAT cluster fragmentation, exercises `cellFsSetIoBuffer` and `cellFsStRead`, and finishes with three contention probes that simulate a real game's I/O mix (audio + texture streaming + sequential level load). See [docs/disk_tuning.md](docs/disk_tuning.md) for what those probes actually told us.
+
+### 5. Cell DMA BW - aggregate XDR <-> LS bandwidth
+
+All 6 SPEs in parallel pulling (GET) or pushing (PUT) 16 KB MFC chunks against XDR through a double-buffered pipeline. Each SPE owns a 1 MB XDR slice so they don't fight for the same cache lines. Headline numbers on stock 3.2 GHz: **GET ~22.8 GB/s, PUT ~22.1 GB/s**, both within ~13% of the 25.6 GB/s XDR1 DRAM ceiling. Stresses the EIB-to-MIC path, the bottleneck is DRAM, not the EIB or the MFC.
+
+### 6. Cell EIB BW - SPE <-> SPE LS bandwidth
+
+The same 6 SPEs paired up (0<->1, 2<->3, 4<->5), each reading from its partner's local store via the SDK fixed peer LS EA mapping (`SYS_SPU_THREAD_BASE_LOW + spu_num * SYS_SPU_THREAD_OFFSET`). Pure EIB never touches the MIC or XDR. Aggregate **~115 GB/s** across 3 disjoint pairs, ~74% of the per-direction 25.6 GB/s ring ceiling. Each pair runs two simultaneous flows on opposite ring directions, so per-pair throughput exceeds the single-ring nominal. As far as I'm aware there's no public benchmark numbers measured on retail hardware.
 
 ---
 
@@ -139,11 +140,11 @@ If you find a configuration that fails here that worked in something else, open 
 - **memtest86+** - The test methodology used in the `spu_memtest.c` follows the standard pattern set: Walking 1/0, Checkerboard, Moving Inversions, Bank Hammer, Bit Fade, etc. The patterns themselves are decades-old academic memory-testing techniques; this is an independent SPU/DMA implementation of them, but credit where it's due.
 - **The PS3 developer community** - `ps3py`, `scetool`, and decades of patient reverse engineering.
 
----
+--- 
 
 ## License
 
-[LICENSE](LICENSE). Applies to everything in this repository now and to the full source when it's released.
+MIT License
 
 ---
 

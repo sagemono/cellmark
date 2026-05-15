@@ -166,7 +166,9 @@ typedef struct {
 #define PAGE_PPE            1
 #define PAGE_XDR            2
 #define PAGE_DISK           3
-#define PAGE_COUNT          4
+#define PAGE_DMA            4
+#define PAGE_EIB            5
+#define PAGE_COUNT          6
 
 #ifndef __SPU__
 
@@ -177,6 +179,15 @@ typedef struct {
 #define PPE_BENCH_L1_LAT    3
 #define PPE_BENCH_L2_LAT    4
 #define PPE_BENCH_COUNT     5
+
+/* DMA benchmark indices (PAGE_DMA selector) */
+#define DMA_BENCH_GET       0
+#define DMA_BENCH_PUT       1
+#define DMA_BENCH_COUNT     2
+
+/* EIB benchmark indices (PAGE_EIB selector) */
+#define EIB_BENCH_PAIRS     0   /* 0<->1, 2<->3, 4<->5: 3 disjoint LS-LS pairs */
+#define EIB_BENCH_COUNT     1
 
 /* PPE peak: 1 vmaddfp/cyc * 4 lanes * 2 ops = 8 GFLOPS/GHz (single PPE core) */
 #define PEAK_PPE_VMX        8.0f

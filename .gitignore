@@ -3,6 +3,23 @@
 !/ppu/ppe_benchmarks.h
 !/ppu/disk_benchmark.c
 !/ppu/disk_benchmark.h
+!/ppu/dma_benchmark.c
+!/ppu/dma_benchmark.h
+!/ppu/eib_benchmark.c
+!/ppu/eib_benchmark.h
+!/ppu/render_cell.c
+!/ppu/render.h
+!/ppu/cellmark.h
+!/ppu/gcm.c
+!/ppu/gcm.h
+!/ppu/main.c
+!/ppu/render_disk.c
+!/ppu/render_dma.c
+!/ppu/render_eib.c
+!/ppu/render_ppe.c
+!/ppu/render.c
+!/ppu/spu.h
+!/ppu/spu.c
 
 /spu/*
 !/spu/spu_fma_kernel.S
@@ -11,12 +28,19 @@
 !/spu/spu_recip_kernel.S
 !/spu/spu_shuf_kernel.S
 !/spu/spu_dual_kernel.S
+!/spu/spu_dma_kernel.c
+!/spu/spu_dma_main.c
+!/spu/spu_eib_main.c
+!/spu/spu_memtest.c
+!/spu/spu_stress.c
 
 /include/*
 !/include/stress_common.h
 
 /docs/*
 !/docs/disk_tuning.md
+!/docs/ppe_tuning.md
+!/docs/spu_tuning.md
 
 /Makefile
 /build.bat
@@ -27,13 +51,12 @@
 /ps3py
 /scetool
 
-/cellmark
 /cellmark.elf
 /cellmark.self
 /cellmark.pkg
+/cellmark_decr.pkg
+/cellmark_decr.elf
+/cellmark_decr.self
 /obj
 /Debug
 /.vs
-
-/READMEbefore DRAFTED-final2.md
-/READMEbefore copy.md
