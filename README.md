@@ -23,7 +23,7 @@ engine/                   bench-agnostic framework + shared services
   sysmon.{c,h}, render.{c,h} status string + render helpers
   spu_shared/             SPU code used by multiple benches
 benches/<name>/           one self-contained directory per benchmark
-  _template/              copy-source for new benches (see ADDING_A_BENCHMARK.md)
+  _template/              copy-source for new benches (see adding_a_benchmark.md)
   cell/    ppe/    disk/    dma/    eib/    atomic/    mbox/    branch/
   pi/      fft/    nbody/   workload/   burn/
 include/                  public headers
@@ -34,14 +34,14 @@ tools/
   new_bench.py            scaffold a new bench from _template/
 docs/
   cell_tuning.md          optimization bible + measurement bible
-  ARCHITECTURE.md         how cellmark is structured internally
-  ADDING_A_BENCHMARK.md   guide for extending cellmark
+  architecture.md         how cellmark is structured internally
+  adding_a_benchmark.md   guide for extending cellmark
   ppe_tuning.md, spu_tuning.md, disk_tuning.md  subsystem deep dives
 build/                    all build outputs land here (gitignored)
 ```
 
-For a deeper look at the engine internals see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md);
-to add your own benchmark, [docs/ADDING_A_BENCHMARK.md](docs/ADDING_A_BENCHMARK.md).
+For a deeper look at the engine internals see [docs/architecture.md](docs/architecture.md);
+to add your own benchmark, [docs/adding_a_benchmark.md](docs/adding_a_benchmark.md).
 
 ---
 
@@ -154,7 +154,7 @@ python tools/new_bench.py raytracer --category workload
 # scaffolds benches/raytracer/ from _template/, prints registration steps
 ```
 
-See [docs/ADDING_A_BENCHMARK.md](docs/ADDING_A_BENCHMARK.md) for the
+See [docs/adding_a_benchmark.md](docs/adding_a_benchmark.md) for the
 full guide.
 
 ---
