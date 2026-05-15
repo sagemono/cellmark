@@ -13,7 +13,6 @@
 #include "pmu.h"
 
 #include <cell/perf/performance.h>
-
 static const pmu_event_t g_eib_pmu_events[] = {
     { CELL_PERF_SIGNAL_EIB_DATA_RING_0_WAS_IN_USE, 0, 0, "RING0" },
     { CELL_PERF_SIGNAL_EIB_DATA_RING_1_WAS_IN_USE, 0, 0, "RING1" },
@@ -103,8 +102,7 @@ float eib_benchmark_run(int mode, int active_readers, int src, int dst)
         if (ret != CELL_OK) {
             ret = sys_spu_image_import(&g_spu_img, (const void *)_binary_spu_eib_elf_start, SYS_SPU_IMAGE_DIRECT);
             if (ret != CELL_OK) return 0.0f;
-        }
-        g_image_loaded = 1;
+        }       g_image_loaded = 1;
     }
 
     sys_spu_thread_group_attribute_initialize(group_attr);
@@ -209,17 +207,6 @@ fail_group:
 
 static eib_results_summary_t g_summary;
 
-static void rings_label(const pmu_result_t *r, char out[4])
-{
-    uint64_t cw  = (uint64_t)r->values[0] + (uint64_t)r->values[2];
-    uint64_t ccw = (uint64_t)r->values[1] + (uint64_t)r->values[3];
-    const char *s;
-    if (cw  > 2u * ccw) s = "CW ";
-    else if (ccw > 2u * cw)  s = "CCW";
-    else                     s = "SPL";
-    out[0] = s[0]; out[1] = s[1]; out[2] = s[2]; out[3] = '\0';
-}
-
 void eib_run_batch(int bench_id, uint64_t tb_freq)
 {
     float now;
@@ -239,8 +226,6 @@ void eib_run_batch(int bench_id, uint64_t tb_freq)
             if (runs == 0) *slot = now;
             else           *slot = 0.7f * *slot + 0.3f * now;
             g_nxn_summary.runs[src][dst] = runs + 1u;
-            if (g_eib_pmu_result.ok)
-                rings_label(&g_eib_pmu_result, g_nxn_summary.rings[src][dst]);
         }
 
         g_nxn_batches_here++;

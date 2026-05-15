@@ -11,7 +11,6 @@
 
 #include "stress_common.h"
 #include "burn_benchmark.h"
-
 #define ERR_BUFFER_ALLOC    1
 #define ERR_IMG_IMPORT      2
 #define ERR_GRP_CREATE      3
@@ -92,8 +91,7 @@ void burn_start(void)
         if (ret != CELL_OK) {
             ret = sys_spu_image_import(&g_spu_img, (const void *)_binary_spu_burn_elf_start, SYS_SPU_IMAGE_DIRECT);
             if (ret != CELL_OK) { record_failure(ERR_IMG_IMPORT, ret); return; }
-        }
-        g_image_loaded = 1;
+        }       g_image_loaded = 1;
     }
 
     if (!g_dma_buffer || g_dma_buffer_sz < BURN_DMA_CHUNK_BYTES) {
@@ -164,6 +162,7 @@ void burn_stop(void)
 
     g_stop_flag[0] = 1u;
 
+    sys_spu_thread_group_terminate(g_group, 0);
     sys_spu_thread_group_join(g_group, &cause, &status);
     sys_spu_thread_group_destroy(g_group);
 

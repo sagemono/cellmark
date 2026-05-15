@@ -1010,3 +1010,5 @@ EMA rolls cleanly.
 - Kistler, Perrone, Petrini - **CELL MULTIPROCESSOR COMMUNICATION NETWORK:BUILT FOR SPEED** (IEEE Micro, 2006) - academic EIB performance reference
 - Bader, Agarwal, Petrini, *et al.* - **FFTC: Fastest Fourier Transform for the IBM Cell Broadband Engine** (CellBuzz, 2007) - source for the SIMD butterfly inner-loop techniques used in §5.2. cellmark's FFT workload adopts FFTC's inner-loop SIMD pattern but uses a different parallelism model (6 SPUs x 4 lanes independent FFTs vs FFTC's single FFT distributed across 8 SPUs with hardcoded sync). Reference code lives under `docs/cell_code_examples/CellBuzz-main/fft/`.
 - webMAN MOD source (`cpursx.h`, `fancontrol.h`) - reference implementation showing thermal/fan readout patterns from a vsh-injected context
+
+*Investigation by sagemono, 2026. cellmark v2.0.0.*

@@ -10,7 +10,6 @@
 
 #include "stress_common.h"
 #include "pi_benchmark.h"
-
 #define ERR_IMG_IMPORT  1
 #define ERR_GRP_CREATE  2
 #define ERR_THR_INIT    3
@@ -99,8 +98,7 @@ void pi_run_batch(uint64_t tb_freq)
         if (ret != CELL_OK) {
             ret = sys_spu_image_import(&g_spu_img, (const void *)_binary_spu_pi_elf_start, SYS_SPU_IMAGE_DIRECT);
             if (ret != CELL_OK) { record_failure(ERR_IMG_IMPORT, ret); return; }
-        }
-        g_image_loaded = 1;
+        }       g_image_loaded = 1;
     }
 
     per_spe      = PI_DIGITS_PER_BATCH / PI_NUM_SPES;

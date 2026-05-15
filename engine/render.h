@@ -19,7 +19,11 @@ void render_workload_stats(double elapsed);
 
 void render_burn_stats(double elapsed);
 
+#ifdef CELLMARK_DECR
+#define LOG_PATH "/dev_hdd0/game/CELLMARKD/USRDIR/cellmark.log"
+#else
 #define LOG_PATH "/dev_hdd0/game/CELLMARK0/USRDIR/cellmark.log"
+#endif
 void write_log(const char *reason);
 
 #endif /* RENDER_H */

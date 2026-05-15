@@ -11,7 +11,6 @@
 
 #include "stress_common.h"
 #include "mbox_benchmark.h"
-
 #define NUM_SPES   1
 #define MBOX_SPU_PORT       58
 #define MBOX_RECV_TIMEOUT_US    100000ULL
@@ -81,8 +80,7 @@ float mbox_benchmark_run(uint32_t iterations)
         if (ret != CELL_OK) {
             ret = sys_spu_image_import(&g_spu_img, (const void *)_binary_spu_mbox_elf_start, SYS_SPU_IMAGE_DIRECT);
             if (ret != CELL_OK) { record_failure(ERR_IMAGE_IMPORT, ret); return 0.0f; }
-        }
-        g_image_loaded = 1;
+        }       g_image_loaded = 1;
     }
 
     sys_spu_thread_group_attribute_initialize(group_attr);

@@ -14,6 +14,7 @@ Both retail CFW and DECR-1000A development-kit build variants are supported. The
 
 ```
 ppu/main.c                entry point
+
 engine/                   bench-agnostic framework + shared services
   cellmark_engine.{c,h}   bench module dispatch
   bench_modules.c         all bench_module_t entries
@@ -22,21 +23,26 @@ engine/                   bench-agnostic framework + shared services
   pmu.{c,h}, cell_pmu.{c,h}  libperf wrapper + cell-side sampling
   sysmon.{c,h}, render.{c,h} status string + render helpers
   spu_shared/             SPU code used by multiple benches
+
 benches/<name>/           one self-contained directory per benchmark
   _template/              copy-source for new benches (see adding_a_benchmark.md)
   cell/    ppe/    disk/    dma/    eib/    atomic/    mbox/    branch/
   pi/      fft/    nbody/   workload/   burn/
+
 include/                  public headers
   bench.h                 bench_module_t interface
   stress_common.h         PPU/SPE shared types
+
 tools/
   build.py                build driver (replaces build.bat)
   new_bench.py            scaffold a new bench from _template/
+
 docs/
   cell_tuning.md          optimization bible + measurement bible
   architecture.md         how cellmark is structured internally
   adding_a_benchmark.md   guide for extending cellmark
   ppe_tuning.md, spu_tuning.md, disk_tuning.md  subsystem deep dives
+
 build/                    all build outputs land here (gitignored)
 ```
 

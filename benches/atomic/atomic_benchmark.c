@@ -10,7 +10,6 @@
 
 #include "stress_common.h"
 #include "atomic_benchmark.h"
-
 #define NUM_SPES   2
 
 extern const char _binary_spu_atomic_elf_start[];
@@ -62,8 +61,7 @@ float atomic_benchmark_run(uint32_t iterations_per_spe)
         if (ret != CELL_OK) {
             ret = sys_spu_image_import(&g_spu_img, (const void *)_binary_spu_atomic_elf_start, SYS_SPU_IMAGE_DIRECT);
             if (ret != CELL_OK) return 0.0f;
-        }
-        g_image_loaded = 1;
+        }       g_image_loaded = 1;
     }
 
     sys_spu_thread_group_attribute_initialize(group_attr);
@@ -93,7 +91,6 @@ float atomic_benchmark_run(uint32_t iterations_per_spe)
 
     ret = sys_spu_thread_group_start(spu_group);
     if (ret != CELL_OK) goto fail_group;
-
     ret = sys_spu_thread_group_join(spu_group, &cause, &status);
     if (ret != CELL_OK) goto fail_group;
 

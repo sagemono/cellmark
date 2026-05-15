@@ -8,9 +8,8 @@
 #include "cellmark.h"
 #include "sysmon.h"
 
-extern int sys_game_get_temperature(uint8_t tzone, uint32_t *out);
-
-#define SYS_SM_GET_FAN_POLICY     409 // works on DECR? use raw syscall number and try
+#define SYS_GAME_GET_TEMPERATURE  383
+#define SYS_SM_GET_FAN_POLICY     409
 
 #define TZONE_CELL  0x00
 #define TZONE_RSX   0x01
@@ -19,8 +18,8 @@ extern int sys_game_get_temperature(uint8_t tzone, uint32_t *out);
 static int sm_get_temperature(uint8_t tzone, uint32_t *out_raw)
 {
     uint32_t local = 0;
-    int ret = sys_game_get_temperature(tzone, &local);
-    if (ret != 0) return ret;
+    system_call_2(SYS_GAME_GET_TEMPERATURE, (uint64_t)tzone, (uint64_t)(uintptr_t)&local);
+    if ((int)p1 != 0) return (int)p1;
     *out_raw = local;
     return 0;
 }

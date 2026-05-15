@@ -45,7 +45,6 @@ const eib_sweep_summary_t *eib_get_sweep_summary(void);
 typedef struct {
     float    mbps[EIB_NXN_SPES][EIB_NXN_SPES];
     uint32_t runs[EIB_NXN_SPES][EIB_NXN_SPES];
-    char     rings[EIB_NXN_SPES][EIB_NXN_SPES][4];
     int      active_src;
     int      active_dst;
 } eib_nxn_summary_t;

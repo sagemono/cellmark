@@ -110,30 +110,28 @@ void render_eib_stats(double elapsed)
         if (any) {
             float mn = 1.0e30f, mx = 0.0f, sum = 0.0f;
             int   cnt = 0;
-            cellDbgFontConsolePrintf(dbg_console, "  N x N EIB direction (src reads dst); CW=rings 0+2, CCW=rings 1+3, SPL=arbiter splits both:\n");
-            cellDbgFontConsolePrintf(dbg_console, "  src\\dst   0    1    2    3    4    5\n");
+            cellDbgFontConsolePrintf(dbg_console, "  N x N EIB src->dst per-pair GB/s (* = current):\n");
+            cellDbgFontConsolePrintf(dbg_console, "  src\\dst    0      1      2      3      4      5\n");
             for (s = 0; s < EIB_NXN_SPES; s++) {
                 int pos = snprintf(buf, sizeof(buf), "       %d:", s);
                 for (d = 0; d < EIB_NXN_SPES; d++) {
                     int active = (s == m->active_src && d == m->active_dst && current_eib_bench == EIB_BENCH_NXN);
                     if (s == d) {
-                        pos += snprintf(buf + pos, sizeof(buf) - pos, "  -  ");
-                    } else if (m->runs[s][d] > 0) {
-                        pos += snprintf(buf + pos, sizeof(buf) - pos, " %s%c", m->rings[s][d], active ? '*' : ' ');
-                        if (m->mbps[s][d] > 0.0f) {
-                            float g = m->mbps[s][d] / 1000.0f;
-                            if (g < mn) mn = g;
-                            if (g > mx) mx = g;
-                            sum += g; cnt++;
-                        }
+                        pos += snprintf(buf + pos, sizeof(buf) - pos, "    -  ");
+                    } else if (m->runs[s][d] > 0 && m->mbps[s][d] > 0.0f) {
+                        float g = m->mbps[s][d] / 1000.0f;
+                        pos += snprintf(buf + pos, sizeof(buf) - pos, " %5.2f%c", g, active ? '*' : ' ');
+                        if (g < mn) mn = g;
+                        if (g > mx) mx = g;
+                        sum += g; cnt++;
                     } else {
-                        pos += snprintf(buf + pos, sizeof(buf) - pos, " ... ");
+                        pos += snprintf(buf + pos, sizeof(buf) - pos, "  ...  ");
                     }
                 }
                 cellDbgFontConsolePrintf(dbg_console, "%s\n", buf);
             }
             if (cnt > 0) {
-                snprintf(buf, sizeof(buf), "    per-pair GB/s: min=%.2f  avg=%.2f  max=%.2f  (* = current)", mn, sum / (float)cnt, mx);
+                snprintf(buf, sizeof(buf), "    summary GB/s: min=%.2f  avg=%.2f  max=%.2f", mn, sum / (float)cnt, mx);
                 cellDbgFontConsolePrintf(dbg_console, "%s\n", buf);
             }
             cellDbgFontConsolePrintf(dbg_console, "\n");

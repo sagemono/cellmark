@@ -17,8 +17,13 @@
 #include <stdint.h>
 #include <cell/fs/cell_fs_file_api.h>
 
-/* test file location - same directory as the app */
+#ifdef CELLMARK_DECR
+#define DISK_TEST_FILE  "/dev_hdd0/game/CELLMARKD/USRDIR/disktest.bin"
+#define DISK_PROBE_FILE "/dev_hdd0/game/CELLMARKD/USRDIR/dskprobe.bin"
+#else
 #define DISK_TEST_FILE  "/dev_hdd0/game/CELLMARK0/USRDIR/disktest.bin"
+#define DISK_PROBE_FILE "/dev_hdd0/game/CELLMARK0/USRDIR/dskprobe.bin"
+#endif
 
 /* benchmark IDs */
 #define DISK_BENCH_SEQ_READ     0
@@ -54,8 +59,7 @@ int disk_is_running(void);
 
 const disk_bench_state_t *disk_get_state(void);
 
-#define DISK_PROBE_FILE    "/dev_hdd0/game/CELLMARK0/USRDIR/dskprobe.bin"
-#define DISK_PROBE_FILE_SZ (32 * 1024 * 1024)   /* 32MB: fast iteration */
+#define DISK_PROBE_FILE_SZ (32 * 1024 * 1024)   /* 32 MB: fast iteration */
 #define DISK_PROBE_COUNT   13
 
 #define PROBE_ST_PENDING   0

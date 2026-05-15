@@ -11,7 +11,6 @@
 
 #include "stress_common.h"
 #include "fft_benchmark.h"
-
 #define ERR_IMG_IMPORT  1
 #define ERR_GRP_CREATE  2
 #define ERR_THR_INIT    3
@@ -72,8 +71,7 @@ void fft_run_batch(uint64_t tb_freq)
         if (ret != CELL_OK) {
             ret = sys_spu_image_import(&g_spu_img, (const void *)_binary_spu_fft_elf_start, SYS_SPU_IMAGE_DIRECT);
             if (ret != CELL_OK) { record_failure(ERR_IMG_IMPORT, ret); return; }
-        }
-        g_image_loaded = 1;
+        }       g_image_loaded = 1;
     }
 
     sys_spu_thread_group_attribute_initialize(group_attr);

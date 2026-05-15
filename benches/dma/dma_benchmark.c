@@ -13,7 +13,6 @@
 #include "pmu.h"
 
 #include <cell/perf/performance.h>
-
 static const pmu_event_t g_dma_pmu_events[] = {
     { CELL_PERF_SIGNAL_SPU_DUAL_INSTRUCTION_COMPLETED,  0, 0, "DUAL"  },
     { CELL_PERF_SIGNAL_SPU_PIPE0_INSTRUCTION_COMPLETED, 0, 0, "PIPE0" },
@@ -47,11 +46,13 @@ static int           g_initialized = 0;
 static dma_params_t  g_params [NUM_SPES] __attribute__((aligned(128)));
 static dma_results_t g_results[NUM_SPES] __attribute__((aligned(128)));
 
-static void *g_xdr_region    = NULL;
-static size_t g_xdr_region_size = 0;
+static void    *g_xdr_region      = NULL;
+static size_t   g_xdr_region_size = 0;
 
 static sys_spu_image_t g_spu_img;
 static int             g_image_loaded = 0;
+
+extern void *cellmark_engine_shared_xdr_buffer(uint32_t *size_out);
 
 void dma_benchmark_init(uint64_t timebase_freq)
 {
@@ -63,12 +64,14 @@ static int ensure_xdr_region(void)
 {
     if (g_xdr_region) return 0;
 
+    uint32_t shared_size = 0;
+    void    *shared = cellmark_engine_shared_xdr_buffer(&shared_size);
     g_xdr_region_size = NUM_SPES * DMA_PER_SPE_WINDOW;
-    g_xdr_region = memalign(128, g_xdr_region_size);
-    if (!g_xdr_region) return -1;
-
-    memset(g_xdr_region, 0xA5, g_xdr_region_size);
-    return 0;
+    if (shared && shared_size >= g_xdr_region_size) {
+        g_xdr_region = shared;
+        return 0;
+    }
+    return -1;
 }
 
 const uint32_t dma_sweep_chunk_sizes[DMA_SWEEP_COUNT] = {
@@ -102,8 +105,7 @@ float dma_benchmark_run(int direction, uint32_t chunk_size, uint32_t iterations)
         if (ret != CELL_OK) {
             ret = sys_spu_image_import(&g_spu_img, (const void *)_binary_spu_dma_elf_start, SYS_SPU_IMAGE_DIRECT);
             if (ret != CELL_OK) return 0.0f;
-        }
-        g_image_loaded = 1;
+        }       g_image_loaded = 1;
     }
 
     sys_spu_thread_group_attribute_initialize(group_attr);

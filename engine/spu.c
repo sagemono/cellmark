@@ -109,14 +109,18 @@ int start_spu_stress(int mode, int memtest_id, void *memtest_region, uint32_t re
         num_spes_active++;
     }
 
-    if (num_spes_active == 0) {
-        printf("no SPU threads could be created\n");
+    if (num_spes_active < MAX_SPES) {
+        printf("spu: only %d/%d threads created, destroying group\n", num_spes_active, MAX_SPES);
+        sys_spu_thread_group_destroy(spu_group);
+        num_spes_active = 0;
         return -1;
     }
 
     ret = sys_spu_thread_group_start(spu_group);
     if (ret != CELL_OK) {
         printf("sys_spu_thread_group_start failed: 0x%x\n", ret);
+        sys_spu_thread_group_destroy(spu_group);
+        num_spes_active = 0;
         return ret;
     }
 
