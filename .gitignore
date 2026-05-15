@@ -132,8 +132,8 @@
 !/benches/_template/spu_main.c
 
 /docs/*
-!/docs/ADDING_A_BENCHMARK.md
-!/docs/ARCHITECTURE.md
+!/docs/adding_a_benchmark.md
+!/docs/architecture.md
 !/docs/disk_tuning.md
 !/docs/cell_tuning.md
 !/docs/ppe_tuning.md
