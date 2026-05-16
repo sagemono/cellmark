@@ -154,6 +154,76 @@ int init_dbgfont(void *local_addr, uint32_t *local_used)
     return 0;
 }
 
+uint32_t gcm_map_main_buffer(void *addr, uint32_t size)
+{
+    uint32_t io_offset = 0;
+    int ret = cellGcmMapMainMemory(addr, size, &io_offset);
+    if (ret != CELL_OK) {
+        printf("gcm: cellGcmMapMainMemory(%p, %u) failed: 0x%x\n", addr, (unsigned)size, (unsigned)ret);
+        return 0;
+    }
+    printf("gcm: mapped %u KB at %p -> io_offset 0x%08x\n", (unsigned)(size / 1024), addr, (unsigned)io_offset);
+    return io_offset;
+}
+
+int gcm_unmap_main_buffer(uint32_t io_offset)
+{
+    int ret = cellGcmUnmapIoAddress(io_offset);
+    if (ret != CELL_OK) {
+        printf("gcm: cellGcmUnmapIoAddress(0x%08x) failed: 0x%x\n", (unsigned)io_offset, (unsigned)ret);
+    }
+    return ret;
+}
+
+void gcm_blit_main_to_screen(uint32_t src_io_offset, uint32_t src_pitch, uint32_t src_w, uint32_t src_h)
+{
+    CellGcmContextData *ctx = gCellGcmCurrentContext;
+    uint32_t w = (src_w < screen_width)  ? src_w : screen_width;
+    uint32_t h = (src_h < screen_height) ? src_h : screen_height;
+
+    cellGcmSetTransferImage(ctx, CELL_GCM_TRANSFER_MAIN_TO_LOCAL, color_offset[frame_index], color_pitch, 0, 0, src_io_offset, src_pitch, 0, 0, w, h, 4);
+}
+
+void gcm_blit_main_to_screen_scaled(uint32_t src_io_offset, uint32_t src_pitch, uint32_t src_w, uint32_t src_h)
+{
+    CellGcmContextData *ctx = gCellGcmCurrentContext;
+    CellGcmTransferScale scale;
+    CellGcmTransferSurface surf;
+
+    memset(&scale, 0, sizeof(scale));
+    scale.conversion = CELL_GCM_TRANSFER_CONVERSION_TRUNCATE;
+    scale.format     = CELL_GCM_TRANSFER_SCALE_FORMAT_A8R8G8B8;
+    scale.operation  = CELL_GCM_TRANSFER_OPERATION_SRCCOPY;
+    scale.clipX      = 0;
+    scale.clipY      = 0;
+    scale.clipW      = (uint16_t)screen_width;
+    scale.clipH      = (uint16_t)screen_height;
+    scale.outX       = 0;
+    scale.outY       = 0;
+    scale.outW       = (uint16_t)screen_width;
+    scale.outH       = (uint16_t)screen_height;
+    // ratioX/Y = (src / dst) in fixed-point 
+    // GetFixedSint32 hides the format
+    scale.ratioX     = cellGcmGetFixedSint32((float)src_w / (float)screen_width);
+    scale.ratioY     = cellGcmGetFixedSint32((float)src_h / (float)screen_height);
+    scale.inW        = (uint16_t)src_w;
+    scale.inH        = (uint16_t)src_h;
+    scale.pitch      = (uint16_t)src_pitch;
+    scale.origin     = CELL_GCM_TRANSFER_ORIGIN_CORNER;
+    scale.interp     = CELL_GCM_TRANSFER_INTERPOLATOR_FOH;   /* bilinear */
+    scale.offset     = src_io_offset;
+    scale.inX        = 0;
+    scale.inY        = 0;
+
+    surf.format   = CELL_GCM_TRANSFER_SURFACE_FORMAT_A8R8G8B8;
+    surf.pitch    = (uint16_t)color_pitch;
+    surf._padding = 0;
+    surf.offset   = color_offset[frame_index];
+
+    cellGcmSetTransferScaleMode(ctx, CELL_GCM_TRANSFER_MAIN_TO_LOCAL, CELL_GCM_TRANSFER_SURFACE);
+    cellGcmSetTransferScaleSurface(ctx, &scale, &surf);
+}
+
 void flip_frame(void)
 {
     CellGcmContextData *ctx = gCellGcmCurrentContext;

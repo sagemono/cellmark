@@ -18,6 +18,10 @@ extern uint32_t memtest_region_size;/* bytes of XDR allocated for memtest */
 extern uint64_t tb_frequency;       /* timebase ticks per second */
 extern uint64_t tb_start;           /* timebase value at app launch */
 
+extern uint16_t pad_held1;
+extern uint16_t pad_held2;
+extern uint8_t  pad_lx, pad_ly, pad_rx, pad_ry;
+
 double get_elapsed_seconds(void);
 
 #endif /* CELLMARK_H */

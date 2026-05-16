@@ -86,6 +86,7 @@ SPU_BENCHES: dict[str, list[str]] = {
                 'benches/nbody/spu_nbody_kernel.c'],
     'burn':    ['benches/burn/spu_burn_main.c',
                 'engine/spu_shared/spu_dual_kernel.S'],
+    'mandelbrot':['benches/mandelbrot/spu_mandelbrot_main.c'],
 }
 
 PPU_SOURCES: list[str] = [
@@ -109,6 +110,8 @@ PPU_SOURCES: list[str] = [
     'benches/nbody/nbody_benchmark.c',
     'benches/workload/render_workload.c',
     'benches/burn/burn_benchmark.c', 'benches/burn/render_burn.c',
+    'benches/mandelbrot/mandelbrot_benchmark.c',
+    'benches/mandelbrot/render_mandelbrot.c',
 ]
 
 PPU_LIBS_RETAIL = [

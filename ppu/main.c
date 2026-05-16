@@ -36,6 +36,10 @@ int      current_workload   = WORKLOAD_PI;
 int      current_compute    = COMPUTE_SP_FMA;
 int      disk_probe_mode    = 0;
 int      log_enabled        = 0;
+uint16_t pad_held1          = 0;
+uint16_t pad_held2          = 0;
+uint8_t  pad_lx             = 128, pad_ly = 128;
+uint8_t  pad_rx             = 128, pad_ry = 128;
 uint32_t memtest_region_size = 0;
 uint64_t tb_frequency;
 uint64_t tb_start;
@@ -156,6 +160,11 @@ int main(void)
                 uint16_t pressed1 = btns1 & ~prev_btns1;
                 uint16_t pressed2 = btns2 & ~prev_btns2;
                 prev_btns1 = btns1; prev_btns2 = btns2;
+                pad_held1 = btns1; pad_held2 = btns2;
+                pad_lx = pad_data.button[CELL_PAD_BTN_OFFSET_ANALOG_LEFT_X];
+                pad_ly = pad_data.button[CELL_PAD_BTN_OFFSET_ANALOG_LEFT_Y];
+                pad_rx = pad_data.button[CELL_PAD_BTN_OFFSET_ANALOG_RIGHT_X];
+                pad_ry = pad_data.button[CELL_PAD_BTN_OFFSET_ANALOG_RIGHT_Y];
 
                 if ((btns1 & 0x09) == 0x09)
                     app_running = 0;

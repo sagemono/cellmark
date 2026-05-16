@@ -8,6 +8,7 @@ extern const bench_module_t bench_dma;
 extern const bench_module_t bench_fabric;
 extern const bench_module_t bench_workload;
 extern const bench_module_t bench_burn;
+extern const bench_module_t bench_mandelbrot;
 
 const bench_module_t *const cellmark_bench_registry[] = {
     &bench_cell,
@@ -18,5 +19,6 @@ const bench_module_t *const cellmark_bench_registry[] = {
     &bench_fabric,
     &bench_workload,
     &bench_burn,
+    &bench_mandelbrot,
     0,
 };

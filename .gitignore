@@ -47,6 +47,7 @@
 !/benches/pi/
 !/benches/ppe/
 !/benches/workload/
+!/benches/mandelbrot/
 !/benches/_template/
 
 /benches/atomic/*

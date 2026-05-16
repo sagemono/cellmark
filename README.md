@@ -27,7 +27,7 @@ engine/                   bench-agnostic framework + shared services
 benches/<name>/           one self-contained directory per benchmark
   _template/              copy-source for new benches (see adding_a_benchmark.md)
   cell/    ppe/    disk/    dma/    eib/    atomic/    mbox/    branch/
-  pi/      fft/    nbody/   workload/   burn/
+  pi/      fft/    nbody/   workload/   burn/   mandelbrot/
 
 include/                  public headers
   bench.h                 bench_module_t interface
@@ -53,7 +53,7 @@ to add your own benchmark, [docs/adding_a_benchmark.md](docs/adding_a_benchmark.
 
 ## What cellmark actually does (full app)
 
-Eight pages, switched with **L2/R2** on a controller. L1/R1 cycle the
+Nine pages, switched with **L2/R2** on a controller. L1/R1 cycle the
 variant within a page.
 
 ### 1. Cell - SPU compute (all 6 SPEs in parallel)
@@ -116,6 +116,14 @@ Cinebench-style: each workload gets a normalised score (stock 3.2 GHz =
 
 Continuously saturates every Cell subsystem at once: **4 SPEs running dual-issue max-heat compute** (saturates even+odd pipes every cycle), **2 SPEs streaming XDR DMA**, **PPE TH0 VMX FMA** inline between display frames. Reports live SPE compute GFLOPS, XDR GB/s, PPE VMX GFLOPS, and a composite saturation score. Leave it running for a few hours to find thermal issues. The "how much of Cell are you actually using" view.
 
+### 9. Render - SPE Mandelbrot with RSX display
+
+The first cellmark bench that puts pixels on screen instead of just text. All 6 SPEs compute a 1920x1080 (or fallback) ARGB Mandelbrot frame straight into XDR; RSX's **NV3089 2D image scaler** blits MAIN->LOCAL onto the active scanout buffer over FlexIO. Two-pack interleaved SIMD inner loop (8 pixels per outer iter; the Michael Kohn naken_asm trick applied through GCC intrinsics) gets the iteration cost to **~7.75 instructions per 4-pack iter**, close to the SPU dual-issue ceiling. **Cardioid + period-2 bulb** analytic test pre-traps lanes guaranteed in-set, skipping the iteration loop entirely for the bulk of the heart-shape interior. View-change detection caches the last computed frame so static viewing drops the SPE batch and runs at vsync 60 fps with the cached buffer.
+
+Interactive: left stick pans, right stick Y zooms, X/O step zoom, d-pad LEFT/RIGHT cycles palett (rainbow, fire, ocean, grayscale, electric), d-pad UP/DOWN rotates hue, Square cycles max_iter 64 4096, L1 resets the view.
+
+If the 9 MB 1080p buffer won't allocate (tight retail heap), the bench walks a resolution fallback ladder and uses RSX bilinear (NV3089 FOH) to upscale whatever fits onto the full screen, so you still get fullscreen output. Exercises subsystems no other bench touches: the RSX 2D transfer engine, IO MMU mapping (`cellGcmMapMainMemory`), and the FlexIO main-mem -> VRAM path.
+
 ---
 
 ## Running it
@@ -135,6 +143,8 @@ The compiled package is on the [Releases](../../releases) page.
 | **Square**            | Toggle disk bench / probe view          |
 | **Triangle**          | Toggle file logging                     |
 | **SELECT + START**    | Exit                                    |
+
+On the Render page the Mandelbrot bench takes over the analog sticks and d-pad for pan/zoom/palette/hue. The global L2/R2 page navigation still works to leave.
 
 File logging appends to `/dev_hdd0/game/CELLMARK0/USRDIR/cellmark.log` on every mode change, every memtest pass, and on exit. Useful for long stability runs where you want a paper trail of what passed before something hung.
 
